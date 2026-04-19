@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Wordle של החבורה</title>
+  <style>
+    :root {
+      --bg:        #f0fff8;
+      --correct:   #a8d8a8;
+      --correct-t: #2d6a2d;
+      --present:   #ffe08a;
+      --present-t: #7a5c00;
+      --absent:    #d4c5e2;
+      --absent-t:  #4a3a5e;
+      --key-bg:    #c8eee4;
+      --key-text:  #1a4a3e;
+      --text:      #1a3a30;
+      --header-b:  #90d4c0;
+      --accent:    #2a9d8f;
+      --accent-dk: #1a7060;
+      --font:      'Segoe UI', Arial, sans-serif;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; touch-action: manipulation; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 10px 6px;
+      overflow-x: hidden;
+    }
+
+    header {
+      width: 100%;
+      max-width: 500px;
+      border-bottom: 2px solid var(--header-b);
+      padding-bottom: 10px;
+      margin-bottom: 14px;
+      text-align: center;
+    }
+
+    h1 { font-size: 1.7rem; letter-spacing: 4px; font-weight: 900; color: var(--accent); }
+
+    #puzzle-num { font-size: 0.75rem; color: #b07090; margin-top: 3px; }
+
+    #message {
+      min-height: 1.6em;
+      font-size: 0.95rem;
+      color: var(--accent);
+      font-weight: bold;
+      text-align: center;
+      margin-bottom: 10px;
+      letter-spacing: 0.5px;
+    }
+
+    #grid {
+      display: grid;
+      gap: 5px;
+      margin-bottom: 18px;
+    }
+
+    .tile {
+      width: 52px;
+      height: 52px;
+      border: 2px solid #e0c8d8;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.7rem;
+      font-weight: bold;
+      background: #fff;
+      color: var(--text);
+    }
+
+    .tile.filled   { border-color: #c0a0c0; animation: pop 0.1s ease; }
+    .tile.selected { border-color: #2a9d8f; border-width: 3px; background: #e0fff8; }
+    .tile.correct { background: var(--correct); border-color: var(--correct); color: var(--correct-t); }
+    .tile.present { background: var(--present); border-color: var(--present); color: var(--present-t); }
+    .tile.absent  { background: var(--absent);  border-color: var(--absent);  color: var(--absent-t);  }
+
+    @keyframes pop {
+      0%,100% { transform: scale(1); }
+      50%      { transform: scale(1.13); }
+    }
+    @keyframes shake {
+      0%,100%  { transform: translateX(0); }
+      20%,60%  { transform: translateX(-6px); }
+      40%,80%  { transform: translateX(6px); }
+    }
+    .shake { animation: shake 0.4s ease; }
+
+    /* ── מקלדת ── */
+    #keyboard {
+      width: 100%;
+      max-width: 500px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: center;
+      background: #d0ede5;
+      border-top: 1px solid #b0d8cc;
+      padding: 12px 6px 16px;
+      border-radius: 0 0 16px 16px;
+    }
+
+    .kb-row { display: flex; gap: 6px; direction: ltr; justify-content: center; width: 100%; }
+
+    .key {
+      height: 46px;
+      flex: 1;
+      max-width: 40px;
+      padding: 0;
+      background: #ffffff;
+      border: none;
+      border-radius: 10px;
+      color: #1a3a30;
+      font-size: 1.1rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font);
+      transition: background 0.2s, transform 0.08s;
+      -webkit-tap-highlight-color: transparent;
+      box-shadow: 0 3px 0 #a0c8bc;
+    }
+
+    .key:active { transform: translateY(2px); box-shadow: 0 1px 0 #a0c8bc; }
+
+    .key.action {
+      background: #90d4c0;
+      color: #0a3028;
+      font-size: 0.85rem;
+      max-width: 52px;
+      box-shadow: 0 3px 0 #60a890;
+    }
+
+    .key.correct { background: var(--correct); color: var(--correct-t); box-shadow: 0 3px 0 #78b878; }
+    .key.present { background: var(--present); color: var(--present-t); box-shadow: 0 3px 0 #d4a820; }
+    .key.absent  { background: #c8c8d8;        color: #666;             box-shadow: 0 3px 0 #a0a0b0; }
+
+    /* ── תוצאה ── */
+    #result {
+      display: none;
+      margin-top: 18px;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      text-align: center;
+    }
+
+    .hint-box {
+      background: #e0f7f0;
+      border: 2px solid #90d4c0;
+      border-radius: 14px;
+      padding: 14px 22px;
+      max-width: 320px;
+    }
+
+    .hint-box strong { color: var(--accent); font-size: 1.1rem; display: block; margin-bottom: 5px; }
+    .hint-box span   { color: #1a5a48; font-size: 0.95rem; }
+
+    /* ── מקרא צבעים ── */
+    #legend {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      margin-bottom: 16px;
+      width: 100%;
+      max-width: 320px;
+      background: #e0f7f0;
+      border: 2px solid #90d4c0;
+      border-radius: 14px;
+      padding: 12px 16px;
+    }
+
+    .legend-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.88rem;
+      color: #5a3050;
+    }
+
+    .legend-tile {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      font-size: 1.1rem;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .legend-tile.correct { background: var(--correct); color: var(--correct-t); }
+    .legend-tile.present { background: var(--present); color: var(--present-t); }
+    .legend-tile.absent  { background: var(--absent);  color: var(--absent-t);  }
+
+    #share-btn {
+      padding: 13px 30px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 30px;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      letter-spacing: 1px;
+      box-shadow: 0 3px 0 var(--accent-dk);
+    }
+
+    #share-btn:active { transform: scale(0.96); }
+
+    #hint-btn {
+      padding: 9px 22px;
+      background: #fff8e0;
+      color: #7a5c00;
+      border: 2px solid #ffe08a;
+      border-radius: 30px;
+      font-size: 0.88rem;
+      font-weight: bold;
+      cursor: pointer;
+      margin-bottom: 10px;
+      display: none;
+      animation: pop 0.2s ease;
+    }
+    #hint-btn:active { transform: scale(0.96); }
+
+    #hint-reveal {
+      background: #fff8e0;
+      border: 2px solid #ffe08a;
+      border-radius: 12px;
+      padding: 10px 18px;
+      font-size: 0.9rem;
+      color: #7a5c00;
+      margin-bottom: 10px;
+      display: none;
+      text-align: center;
+      max-width: 300px;
+    }
+
+    @media (max-width: 380px) {
+      .tile { width: 44px; height: 44px; font-size: 1.4rem; }
+      .key  { height: 48px; min-width: 28px; font-size: 0.95rem; }
+      .key.wide { min-width: 46px; }
+    }
+
+    /* ── קונפטי ── */
+    #confetti-canvas {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 999;
+      display: none;
+    }
+
+    /* ── הודעת ניצחון ── */
+    #win-banner {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -60%) scale(0.5);
+      background: linear-gradient(135deg, #a8d8a8, #ffe08a);
+      border-radius: 24px;
+      padding: 28px 40px;
+      text-align: center;
+      z-index: 1000;
+      box-shadow: 0 8px 40px #00000030;
+      animation: bannerPop 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards;
+    }
+
+    #win-banner.show { display: block; }
+
+    #win-banner .genius {
+      font-size: 1.8rem;
+      font-weight: 900;
+      color: #1a5a40;
+      letter-spacing: 1px;
+    }
+
+    #win-banner .tries {
+      font-size: 1rem;
+      color: #2a7a50;
+      margin-top: 6px;
+    }
+
+    #win-banner .emojis {
+      font-size: 2rem;
+      margin-bottom: 8px;
+    }
+
+    @keyframes bannerPop {
+      from { transform: translate(-50%, -60%) scale(0.5); opacity: 0; }
+      to   { transform: translate(-50%, -60%) scale(1);   opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+
+<canvas id="confetti-canvas"></canvas>
+
+<div id="win-banner">
+  <div class="emojis">🎉🌟🎊</div>
+  <div class="genius">You are a genius!</div>
+  <div class="tries" id="win-tries"></div>
+</div>
+
+<header>
+  <h1>Wordle</h1>
+  <div id="puzzle-num"></div>
+</header>
+
+<div id="message"></div>
+<div id="grid"></div>
+
+<button id="hint-btn" onclick="showHint()">💡 רמז</button>
+<div id="hint-reveal"></div>
+
+<div id="legend">
+  <div class="legend-row">
+    <div class="legend-tile correct">א</div>
+    <span>🟢 אות נכונה במקום הנכון</span>
+  </div>
+  <div class="legend-row">
+    <div class="legend-tile present">א</div>
+    <span>🟡 אות קיימת במילה אבל במקום הלא נכון</span>
+  </div>
+  <div class="legend-row">
+    <div class="legend-tile absent">א</div>
+    <span>🔴 אות לא קיימת במילה בכלל</span>
+  </div>
+</div>
+
+<div id="keyboard"></div>
+
+<div id="result">
+  <div class="hint-box">
+    <strong id="result-word"></strong>
+    <span id="result-hint"></span>
+  </div>
+  <button id="share-btn" onclick="share()">שתף תוצאה 📋</button>
+</div>
+
+<script>
+// =====================================================
+//  המילים של החבורה — הוסיפי כאן מילים ורמזים!
+// =====================================================
+const WORDS = [
+  { word: "פסטרמה", hint: "למה נתאי גיי" },
+  { word: "בוטנים", hint: "מה גורם לגיל לחרחר" },
+  { word: "פרנויה", hint: "המשחק המסכסך והמעולה שלנו" },
+];
+// =====================================================
+
+// ── נורמליזציה אותיות סופיות ─────────────────────────
+const FINALS  = { 'ך':'כ', 'ם':'מ', 'ן':'נ', 'ף':'פ', 'ץ':'צ' };
+const norm    = s => s.split('').map(c => FINALS[c] ?? c).join('');
+
+// ── מילה של היום ──────────────────────────────────────
+const START  = new Date("2026-04-18T00:00:00");
+const TODAY  = new Date();
+const todayMidnight = new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate());
+const DAY    = Math.max(0, Math.floor((todayMidnight - START) / 86400000));
+const ENTRY  = WORDS[DAY % WORDS.length];
+const TARGET = norm(ENTRY.word);
+const LEN    = TARGET.length;
+const MAX    = 6;
+
+document.getElementById('puzzle-num').textContent = `פאזל #${DAY + 1}  •  ${LEN} אותיות`;
+
+// ── מצב ───────────────────────────────────────────────
+let guesses   = [];
+let current   = [];
+let done      = false;
+let keyState  = {};
+let selectedI = null;
+
+// ── גריד ──────────────────────────────────────────────
+const gridEl = document.getElementById('grid');
+gridEl.style.gridTemplateColumns = `repeat(${LEN}, 52px)`;
+
+const tiles = Array.from({ length: MAX }, (_, r) =>
+  Array.from({ length: LEN }, (_, c) => {
+    const d = document.createElement('div');
+    d.className = 'tile';
+    d.addEventListener('click', () => {
+      if (done) return;
+      const row = guesses.length;
+      if (r !== row || !current[c]) return;
+      selectedI = (selectedI === c) ? null : c;
+      renderRow();
+    });
+    gridEl.appendChild(d);
+    return d;
+  })
+);
+
+// ── מקלדת ─────────────────────────────────────────────
+const KB_ROWS = [
+  ['ק','ר','א','ט','ו','ן','מ','פ'],
+  ['ש','ד','ג','כ','ע','י','ח','ל','ך','ף'],
+  ['✓','ז','ס','ב','ה','נ','ם','צ','ת','ץ','⌫'],
+];
+
+const kbEl  = document.getElementById('keyboard');
+const keyEl = {};
+
+KB_ROWS.forEach(row => {
+  const rowDiv = document.createElement('div');
+  rowDiv.className = 'kb-row';
+  row.forEach(k => {
+    const btn = document.createElement('button');
+    btn.className = 'key' + (k === '✓' || k === '⌫' ? ' action' : '');
+    btn.textContent = k;
+    btn.addEventListener('click', () => handle(k));
+    rowDiv.appendChild(btn);
+    if (k !== '✓' && k !== '⌫') keyEl[k] = btn;
+  });
+  kbEl.appendChild(rowDiv);
+});
+
+// ── קלט פיזי ──────────────────────────────────────────
+const HEB = 'אבגדהוזחטיכךלמםנןסעפףצץקרשת';
+document.addEventListener('keydown', e => {
+  if (done) return;
+  if (e.key === 'Backspace') return handle('⌫');
+  if (e.key === 'Enter')     return handle('✓');
+  if (HEB.includes(e.key))  handle(e.key);
+});
+
+// ── לוגיקה ────────────────────────────────────────────
+function handle(k) {
+  if (done) return;
+  if (k === '⌫') {
+    if (selectedI !== null) {
+      current.splice(selectedI, 1);
+      selectedI = null;
+    } else {
+      current.pop();
+    }
+  } else if (k === '✓') {
+    submit(); return;
+  } else {
+    if (selectedI !== null) {
+      current[selectedI] = k;
+      selectedI = null;
+    } else if (current.length < LEN) {
+      current.push(k);
+    }
+  }
+  renderRow();
+}
+
+function renderRow() {
+  const r = guesses.length;
+  for (let c = 0; c < LEN; c++) {
+    const isSel = selectedI === c && current[c];
+    tiles[r][c].textContent = current[c] ?? '';
+    tiles[r][c].className   = 'tile' + (current[c] ? (isSel ? ' selected' : ' filled') : '');
+  }
+}
+
+function submit() {
+  if (current.length < LEN) {
+    msg('חסרות עוד אותיות!');
+    shakeRow(guesses.length);
+    return;
+  }
+
+  const guess   = current.join('');
+  const letters = [...current]; // שומרים עותק לפני האיפוס
+  const ng      = norm(guess);
+  const res     = calcResult(ng, TARGET);
+  const row     = guesses.length;
+
+  // צבע האריחים בהדרגה
+  res.forEach((state, c) => {
+    setTimeout(() => {
+      tiles[row][c].textContent = letters[c];
+      tiles[row][c].className   = `tile ${state}`;
+    }, c * 90);
+  });
+
+  // עדכון מקלדת
+  setTimeout(() => {
+    const RANK = { correct: 3, present: 2, absent: 1 };
+    res.forEach((state, c) => {
+      const letter = norm(letters[c]);
+      const prev   = keyState[letter];
+      if ((RANK[state] ?? 0) > (RANK[prev] ?? 0)) {
+        keyState[letter] = state;
+        [letters[c], letter].forEach(l => {
+          if (keyEl[l]) { keyEl[l].className = `key ${state}`; keyEl[l].dataset.s = state; }
+        });
+      }
+    });
+  }, LEN * 90);
+
+  guesses.push(guess);
+  current   = [];
+  selectedI = null;
+
+  // הצג כפתור רמז אחרי 2 טעויות
+  if (guesses.length >= 2 && ng !== TARGET && ENTRY.hint) {
+    document.getElementById('hint-btn').style.display = 'inline-block';
+  }
+
+  setTimeout(() => {
+    const won = ng === TARGET;
+    if (won) {
+      done = true;
+      document.getElementById('hint-btn').style.display = 'none';
+      document.getElementById('hint-reveal').style.display = 'none';
+      launchConfetti();
+      showWinBanner(guesses.length);
+      msg(WIN[Math.min(guesses.length - 1, WIN.length - 1)]);
+      showResult(true);
+    } else if (guesses.length >= MAX) {
+      done = true;
+      showResult(false);
+    }
+  }, LEN * 90 + 200);
+}
+
+function calcResult(guess, target) {
+  const res  = Array(LEN).fill('absent');
+  const used = Array(LEN).fill(false);
+  // נכון במקום
+  for (let i = 0; i < LEN; i++) {
+    if (guess[i] === target[i]) { res[i] = 'correct'; used[i] = true; }
+  }
+  // קיים אבל לא במקום
+  for (let i = 0; i < LEN; i++) {
+    if (res[i] === 'correct') continue;
+    for (let j = 0; j < LEN; j++) {
+      if (!used[j] && guess[i] === target[j]) {
+        res[i] = 'present'; used[j] = true; break;
+      }
+    }
+  }
+  return res;
+}
+
+// ── תוצאה ─────────────────────────────────────────────
+function showResult(won) {
+  const el = document.getElementById('result');
+  document.getElementById('result-word').textContent =
+    won ? `✅ ${ENTRY.word}` : `❌ המילה הייתה: ${ENTRY.word}`;
+  document.getElementById('result-hint').textContent = ENTRY.hint ? `הרמז היה: ${ENTRY.hint}` : '';
+  el.style.display = 'flex';
+}
+
+function share() {
+  const EM = { correct:'🟩', present:'🟨', absent:'⬜' };
+  const won = norm(guesses[guesses.length - 1]) === TARGET;
+  const lines = guesses.map(g => calcResult(norm(g), TARGET).map(s => EM[s]).join(''));
+  const text  = `וורדל של החבורה #${DAY + 1} ${won ? guesses.length : 'X'}/${MAX}\n\n${lines.join('\n')}`;
+  if (navigator.share) navigator.share({ text });
+  else navigator.clipboard.writeText(text).then(() => msg('הועתק! 📋'));
+}
+
+// ── עזרים ─────────────────────────────────────────────
+// ── קונפטי ───────────────────────────────────────────
+function launchConfetti() {
+  const canvas = document.getElementById('confetti-canvas');
+  canvas.style.display = 'block';
+  const ctx = canvas.getContext('2d');
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  const COLORS = ['#a8d8a8','#ffe08a','#d4c5e2','#f9a8d4','#93c5fd','#fca5a5','#6ee7b7'];
+  const pieces = Array.from({ length: 120 }, () => ({
+    x:    Math.random() * canvas.width,
+    y:    Math.random() * canvas.height - canvas.height,
+    w:    6 + Math.random() * 8,
+    h:    10 + Math.random() * 6,
+    r:    Math.random() * Math.PI * 2,
+    dr:   (Math.random() - 0.5) * 0.2,
+    vy:   3 + Math.random() * 4,
+    vx:   (Math.random() - 0.5) * 2,
+    color: COLORS[Math.floor(Math.random() * COLORS.length)],
+  }));
+
+  let frame;
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    pieces.forEach(p => {
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.r);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      ctx.restore();
+      p.y  += p.vy;
+      p.x  += p.vx;
+      p.r  += p.dr;
+    });
+    if (pieces.some(p => p.y < canvas.height)) {
+      frame = requestAnimationFrame(draw);
+    } else {
+      canvas.style.display = 'none';
+    }
+  }
+  draw();
+  setTimeout(() => { cancelAnimationFrame(frame); canvas.style.display = 'none'; }, 4000);
+}
+
+function showWinBanner(tries) {
+  const banner = document.getElementById('win-banner');
+  document.getElementById('win-tries').textContent = `ניחשת ב־${tries} מתוך 6 ניסיונות 🌟`;
+  banner.classList.add('show');
+  setTimeout(() => banner.classList.remove('show'), 4000);
+}
+
+function showHint() {
+  const btn = document.getElementById('hint-btn');
+  const box = document.getElementById('hint-reveal');
+  btn.style.display = 'none';
+  box.textContent   = `💡 ${ENTRY.hint}`;
+  box.style.display = 'block';
+}
+
+const WIN = ['מושלם! 🔥','וואו! 🎉','כיף אחד! ⭐','מצוין! 💪','נחמד 😎','בסוף הצלחת 😅'];
+let msgT;
+function msg(t) {
+  const el = document.getElementById('message');
+  el.textContent = t;
+  clearTimeout(msgT);
+  if (t && !done) msgT = setTimeout(() => el.textContent = '', 1800);
+}
+function shakeRow(r) {
+  tiles[r].forEach(t => {
+    t.classList.add('shake');
+    t.addEventListener('animationend', () => t.classList.remove('shake'), { once: true });
+  });
+}
+
+renderRow();
+</script>
+</body>
+</html>
